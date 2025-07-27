@@ -158,6 +158,27 @@ foo{}
 }
 
 #[test]
+fn test_one_pb_with_finish_message() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        _span.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span.pb_set_finish_message("done");
+        _span.exit();
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo done
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
 fn test_span_fields() {
     let (subscriber, term) = make_helpers(HelpersConfig::default());
 

@@ -267,7 +267,11 @@ impl ProgressBarManager {
         }
 
         // This span had an active/shown progress bar.
-        pb.finish_and_clear();
+        if let Some(finish_message) = pb_span_ctx.finish_message.take() {
+            pb.finish_with_message(finish_message);
+        } else {
+            pb.finish_and_clear();
+        }
         self.mp.remove(&pb);
         self.active_progress_bars -= 1;
 

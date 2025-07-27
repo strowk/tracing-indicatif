@@ -76,6 +76,12 @@ pub trait IndicatifSpanExt {
     ///
     /// Has no effect if the progress bar for this span is not active.
     fn pb_tick(&self);
+
+    /// Sets message of the progress bar that would be displayed when the span is finished.
+    ///
+    /// See also [`finish_with_message`](indicatif::ProgressBar::finish_with_message).
+    /// If unset, the progress bar will be removed when the span is finished.
+    fn pb_set_finish_message(&self, msg: &str);
 }
 
 impl IndicatifSpanExt for Span {
@@ -123,6 +129,12 @@ impl IndicatifSpanExt for Span {
     fn pb_tick(&self) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.progress_bar_tick();
+        });
+    }
+
+    fn pb_set_finish_message(&self, msg: &str) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.set_progress_bar_finish_message(msg.to_string());
         });
     }
 }
