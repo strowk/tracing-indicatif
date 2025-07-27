@@ -207,18 +207,41 @@ impl ProgressBarManager {
         }
     }
 
-    pub(crate) fn show_progress_bar(
+    pub(crate) fn show_progress_bar<S>(
         &mut self,
         pb_span_ctx: &mut IndicatifSpanContext,
         span_id: &span::Id,
-    ) {
+        ctx: &layer::Context<'_, S>,
+    ) where
+        S: Subscriber + for<'a> LookupSpan<'a>,
+    {
         if self.active_progress_bars < self.max_progress_bars {
             let pb = match pb_span_ctx.parent_progress_bar {
-                // TODO(emersonford): fix span ordering in progress bar, because we use
-                // `insert_after`, we end up showing the child progress bars in reverse order.
-                Some(ref parent_pb) => self
-                    .mp
-                    .insert_after(parent_pb, pb_span_ctx.progress_bar.take().unwrap()),
+                Some(ref parent_pb) => {
+                    let mut siblings_offset: usize = 0;
+                    match pb_span_ctx.parent_span {
+                        None => None,
+                        Some(ref parent_span_id) => {
+                            let parent_span =
+                                ctx.span(parent_span_id).expect("Parent span not found");
+                            let mut ext = parent_span.extensions_mut();
+                            let parent_indicatif_ctx = ext.get_mut::<IndicatifSpanContext>();
+                            if let Some(parent_indicatif_ctx) = parent_indicatif_ctx {
+                                parent_indicatif_ctx.active_children_progress_bars += 1;
+                                siblings_offset =
+                                    parent_indicatif_ctx.active_children_progress_bars;
+                            }
+
+                            Some(())
+                        }
+                    };
+
+                    let parent_index = parent_pb.index().unwrap_or(0);
+                    self.mp.insert(
+                        parent_index + siblings_offset,
+                        pb_span_ctx.progress_bar.take().unwrap(),
+                    )
+                }
                 None => {
                     if self
                         .footer_pb
@@ -272,6 +295,17 @@ impl ProgressBarManager {
         } else {
             pb.finish_and_clear();
             self.mp.remove(&pb);
+            if let Some(parent_span_id) = pb_span_ctx.parent_span.as_ref() {
+                ctx.span(parent_span_id).map(|parent_span| {
+                    let mut ext = parent_span.extensions_mut();
+                    let parent_indicatif_ctx = ext
+                        .get_mut::<IndicatifSpanContext>()
+                        .expect("No IndicatifSpanContext found; this is a bug");
+
+                    // If the parent span was removed, we decrement the active children progress bars.
+                    parent_indicatif_ctx.active_children_progress_bars -= 1;
+                });
+            }
         }
         self.active_progress_bars -= 1;
 
@@ -297,7 +331,7 @@ impl ProgressBarManager {
                     }
 
                     self.decrement_pending_pb();
-                    self.show_progress_bar(indicatif_span_ctx, &span_id);
+                    self.show_progress_bar(indicatif_span_ctx, &span_id, ctx);
                     break;
                 }
                 None => {

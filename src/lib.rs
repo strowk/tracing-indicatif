@@ -188,6 +188,7 @@ struct IndicatifSpanContext {
     parent_progress_bar: Option<ProgressBar>,
     // This is only `Some` if we have some parent with a progress bar.
     parent_span: Option<span::Id>,
+    active_children_progress_bars: usize,
     // Fields to be passed to the progress bar as keys.
     span_fields_formatted: Option<String>,
     span_name: String,
@@ -626,7 +627,7 @@ where
                     indicatif_ctx.parent_progress_bar = parent_pb;
                 }
 
-                pb_manager.show_progress_bar(indicatif_ctx, id);
+                pb_manager.show_progress_bar(indicatif_ctx, id, ctx);
             }
 
             return indicatif_ctx.progress_bar.to_owned();
@@ -692,6 +693,7 @@ where
             span_child_prefix,
             level,
             finish_message: None,
+            active_children_progress_bars: 0,
         });
     }
 

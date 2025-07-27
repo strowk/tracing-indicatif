@@ -158,6 +158,31 @@ foo{}
 }
 
 #[test]
+fn test_two_children_pb() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        let _child_span = info_span!("child1");
+        let _child_span2 = info_span!("child2");
+
+        let _child_span = _child_span.entered();
+        let _child_span2 = _child_span2.entered();
+
+        thread::sleep(Duration::from_millis(10));
+        assert_eq!(
+            term.contents(),
+            r#"
+foo{}
+--> child1{}
+--> child2{}
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
 fn test_one_pb_with_finish_message() {
     let (subscriber, term) = make_helpers(HelpersConfig::default());
 
@@ -198,6 +223,101 @@ fn test_two_pb_with_finish_messages() {
             r#"
 foo done
 bar finished
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
+fn test_two_child_pb_with_finish_messages() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        let _child_span1 = info_span!("child1").entered();
+        _child_span1.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _child_span1.pb_set_finish_message("done");
+        _child_span1.exit();
+        
+        let _child_span2 = info_span!("child2").entered();
+        _child_span2.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _child_span2.pb_set_finish_message("finished");
+        _child_span2.exit();
+
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo{}
+child1 done
+child2 finished
+            "#
+            .trim()
+        );
+    });
+}
+
+
+#[test]
+fn test_two_child_and_parent_pb_with_finish_messages() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        _span.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span.pb_set_finish_message("done");
+
+        let _child_span1 = info_span!("child1").entered();
+        _child_span1.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _child_span1.pb_set_finish_message("done");
+        _child_span1.exit();
+        
+        let _child_span2 = info_span!("child2").entered();
+        _child_span2.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _child_span2.pb_set_finish_message("finished");
+        _child_span2.exit();
+        
+        _span.exit();
+
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo done
+child1 done
+child2 finished
+            "#
+            .trim()
+        );
+    });
+}
+
+
+#[test]
+fn test_one_child_pb_with_finish_messages() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        _span.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span.pb_set_finish_message("done");
+        
+        let _child_span1 = info_span!("child").entered();
+        _child_span1.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _child_span1.pb_set_finish_message("finished");
+        _child_span1.exit();
+        _span.exit();
+        
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo done
+child finished
             "#
             .trim()
         );
