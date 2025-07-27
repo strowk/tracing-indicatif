@@ -271,8 +271,8 @@ impl ProgressBarManager {
             pb.finish_with_message(finish_message);
         } else {
             pb.finish_and_clear();
+            self.mp.remove(&pb);
         }
-        self.mp.remove(&pb);
         self.active_progress_bars -= 1;
 
         loop {
